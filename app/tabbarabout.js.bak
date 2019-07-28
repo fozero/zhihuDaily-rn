@@ -1,0 +1,229 @@
+/**
+ * Created by chushikeji on 2017/6/23.
+ */
+'use strict';
+import React, { Component } from 'react';
+import {   View,Button,Text,
+    Image,
+    ScrollView,
+    StyleSheet,
+    TouchableHighlight,
+    TouchableWithoutFeedback,
+    ListView,
+    Dimensions} from 'react-native';
+import {StackNavigator} from 'react-navigation';
+import NewsDetail from './newsDetail';
+const { width } = Dimensions.get('window')
+
+//专栏
+const  zhuanlanUrl = 'https://news-at.zhihu.com/api/4/themes';
+//专栏内容列表
+const  themeCListUrl = 'https://news-at.zhihu.com/api/4/theme/';
+
+
+class About extends React.Component {
+    constructor(props) {//构造方法
+        super(props);
+        this.state = {
+            themes:'',//主题列表
+            //创建ListView数据源  主题内容
+            dataSource: new ListView.DataSource({
+                rowHasChanged: (row1, row2) => row1 !== row2,
+            }),
+            description:'',//描述
+            image:'',//图片
+            editors:'',//编辑
+            loaded: false,//是否加载  初始为false
+        };
+    }
+    static navigationOptions = {
+        title: '专栏',
+    };
+    //生命周期方法  组件加载完成时调用
+    componentDidMount() {
+        this.fetchData();
+    }
+
+    //数据获取
+    fetchData(){
+        //Promise链式调用
+        fetch(zhuanlanUrl)
+            .then((response) => response.json())
+            .then((responseData) => {
+                console.log("responseData->"+JSON.stringify(responseData));
+                this.setState({//这里会触发一次重新渲染的流程  render函数被触发
+                    themes:responseData.others
+                    //themes:JSON.stringify(responseData.others)
+                });
+                //加载主题内容
+                this._loadThemeContent(responseData.others[0].id);
+            });
+    }
+
+
+
+    //视图渲染
+    render() {
+        return (
+            <View style={styles.container}>
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navs}>
+                    {this._renderThemes(this.state.themes)}
+                </ScrollView>
+                <ListView
+                        dataSource={this.state.dataSource}
+                        renderRow={this._renderStories.bind(this)}
+                        renderHeader={this.renderThemePic.bind(this)}//头部
+                        style={styles.listView}
+                    />
+            </View>
+
+        );
+    }
+
+    //渲染主题图片
+    renderThemePic(){
+        return(
+            <View>
+                <Text>{this.state.description}</Text>
+                <Image
+                    source={{uri: this.state.image}}
+                    style={styles.themePic}
+                />
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navs2}>
+                    {this._renderEditor(this.state.editors)}
+                </ScrollView>
+            </View>
+        )
+    }
+
+    //编辑头像渲染
+    _renderEditor(editors){
+        console.log("editors->"+JSON.stringify(editors));
+        var _editors = [];
+        for(var i =0;i<editors.length;i++){
+            _editors.push(
+                //onPress={this._loadThemeContent(themes[i].id)}
+                //<View  style={styles.nav}><Text>{editors[i].name}</Text></View>
+                <TouchableWithoutFeedback  key={i}  style={styles.nav}  >
+                    <Image
+                        source={{uri: editors[i].avatar}}
+                        style={styles.editor}
+                    />
+                </TouchableWithoutFeedback>
+            );
+        }
+        return _editors;
+    }
+
+
+    //listview item
+    _renderStories(stories) {
+        console.log("stories->"+stories.length);
+        //检查是否存在images属性 没有则添加并设置默认图片
+        if(stories.images == undefined){
+            stories.images = [];
+            stories.images[0] =  'http://facebook.github.io/react/img/logo_og.png';
+        }
+        return (
+            //listview item点击跳转到详情页
+            <TouchableHighlight onPress={() => this.props.navigation.navigate('Profile', {newsId: stories.id,name:stories.title})}>
+                <View style={styles.container}>
+                    <Image
+                        source={{uri: stories.images[0]}}
+                        defaultSource={require('./images/banner1.jpg')}
+                        style={styles.thumbnail}
+                    />
+                    <View style={styles.rightContainer}>
+                        <Text style={styles.title}>{stories.title}</Text>
+                    </View>
+                </View>
+            </TouchableHighlight>
+        );
+    }
+
+
+
+    //主题列表渲染
+    _renderThemes(themes){
+        console.log("themes->"+JSON.stringify(themes));
+        var _themes = [];
+        for(var i =0;i<themes.length;i++){
+            _themes.push(
+                //<TouchableWithoutFeedback  key={i} onPress={this._loadThemeContent(themes[i].id)}>
+                //    <View style={styles.nav}><Text>{themes[i].name}</Text></View>
+                //</TouchableWithoutFeedback>
+                <TouchableWithoutFeedback  key={i}  style={styles.nav}  >
+                    <View  style={styles.nav}><Text>{themes[i].name}</Text></View>
+                </TouchableWithoutFeedback>
+            );
+        }
+        return _themes;
+    }
+
+
+    //加载主题内容
+    _loadThemeContent(themeId){
+        fetch(themeCListUrl+themeId)
+            .then((response) => response.json())
+            .then((responseData) => {
+                console.log("responseData.stories->"+JSON.stringify(responseData.stories));
+                this.setState({//这里会触发一次重新渲染的流程  render函数被触发
+                    description:responseData.description,
+                    image:responseData.image,
+                    editors:responseData.editors,
+                    dataSource: this.state.dataSource.cloneWithRows(responseData.stories),
+                });
+            });
+    }
+
+}
+//导航栏
+const AboutS = StackNavigator({
+    About: { screen: About },
+    Profile:{
+        screen:NewsDetail
+    }
+});
+
+var styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor:'#ffffff'
+    },
+    rightContainer: {
+        flex: 1,
+    },
+    title: {
+        fontSize: 20,
+    },
+    navs:{
+        height:42,
+    },
+    navs2:{
+        height:58,
+    },
+    nav:{
+        padding:10,
+        borderBottomWidth:1,
+        borderBottomColor:'red',
+    },
+    thumbnail: {
+        width: 100,
+        height: 100,
+    },
+    listView: {
+        paddingTop: 20,
+        backgroundColor: '#fff',
+    },
+    themePic:{
+        width,
+        height:158
+    },
+    editor:{
+        width:58,
+        height:58,
+        borderRadius:100
+    }
+});
+
+export default AboutS;
